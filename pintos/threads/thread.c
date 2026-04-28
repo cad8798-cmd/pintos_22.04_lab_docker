@@ -205,16 +205,11 @@ thread_create (const char *name, int priority,
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
-
-	/* 실행 큐에 추가한다. */
-	thread_unblock (t);
-
 	// priority 설정 
 	t->priority = priority;
-
-	// priority 순서대로 스레드를 ready_list에 삽입 
-	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	
+	/* 실행 큐에 추가한다. */
+	thread_unblock (t);
 
 	// current running 스레드와 새롭게 삽입된 스레드의 priority 비교 
 	struct thread *cur = thread_current();
