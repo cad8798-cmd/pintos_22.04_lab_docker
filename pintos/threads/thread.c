@@ -15,6 +15,15 @@
 #include "userprog/process.h"
 #endif
 
+static bool
+cmp_priority (const struct list_elem *t1, const struct list_elem *t2,
+						void *aux UNUSED)
+{
+	const struct thread *a = list_entry(t1, struct thread, elem);
+	const struct thread *b = list_entry(t2, struct thread, elem);
+	return a->priority > b->priority; // TODO: local ticks 비교하는 코드 짜기
+}
+
 /* struct thread의 `magic' 멤버에 넣는 임의의 값.
    스택 오버플로를 감지하는 데 사용한다. 자세한 내용은 thread.h
    맨 위의 긴 주석을 참고한다. */
