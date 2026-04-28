@@ -63,6 +63,9 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+static bool cmp_priority (const struct list_elem *, const struct list_elem *,
+            void *);
+
 /* T가 유효한 스레드를 가리키는 것처럼 보이면 true를 반환한다. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -216,6 +219,16 @@ thread_block (void) {
 	schedule ();
 }
 
+static bool
+cmp_priority (const struct list_elem *new_thread_elem, const struct list_elem *list_thread_elem,
+            void *aux UNUSED) 
+{
+  const struct thread *new_thread = list_entry (new_thread_elem, struct thread, elem);
+  const struct thread *list_thread = list_entry (list_thread_elem, struct thread, elem);
+  
+  return new_thread->priority > list_thread->priority;
+}
+
 /* 블록된 스레드 T를 실행 준비 상태로 전환한다.
    T가 블록 상태가 아니면 오류다. (실행 중인 스레드를 준비 상태로 만들려면
    thread_yield()를 사용한다.)
@@ -231,7 +244,8 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem, cmp_priority, NULL);
+	//list_push_back (&ready_list, &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
