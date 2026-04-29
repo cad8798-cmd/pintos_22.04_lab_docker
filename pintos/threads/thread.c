@@ -273,7 +273,11 @@ thread_unblock (struct thread *t) {
 
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
-	thread_yield(); //새로운 스레드가 더 높다면 schedule을 호출해야됨. 즉, 현재 스레드가 cpu를 양보. 비교하는 걸 넣어야 되나?
+
+	// struct thread *cur = thread_current();
+	// if (cur->priority < t->priority)
+	// 	// 새로운 스레드 priority가 더 크면 CPU 양보
+	// 	thread_yield();
 }
 
 /* 실행 중인 스레드의 이름을 반환한다. */
@@ -355,7 +359,7 @@ thread_set_priority (int new_priority) {
 	// 즉시 CPU 양보 
 	
 	// ready_list에서 현재 스레드의 priority 순서대로 재정렬 
-	list_sort(&ready_list, cmp_priority, NULL);
+	// list_sort(&ready_list, cmp_priority, NULL);
 }
 
 /* 현재 스레드의 우선순위를 반환한다. */

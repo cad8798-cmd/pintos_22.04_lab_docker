@@ -122,7 +122,7 @@ sema_up (struct semaphore *sema) {
 	old_level = intr_disable ();
 	struct thread *first = NULL;
 	if (!list_empty (&sema->waiters))  {
-		first = list_entry (list_pop_front (&sema->waiters),	struct thread, elem);
+		first = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
 		thread_unblock (first);
 	}
 	sema->value++;
@@ -133,7 +133,7 @@ sema_up (struct semaphore *sema) {
 	// -> 정말 즉시 컨텍스트 스위치되는지 vs 정리 후 양보하는지 
 	// -> 그 자리에서 즉시 스위치되는 것은 아니고 sema_up()의 핵심 작업을 끝낸 뒤 안전한 시점에 CPU를 넘김 
 	
-
+	
 	// priority 순서대로 waiters 리스트 정렬 
 	// list_sort(&sema->waiters, cmp_priority, NULL);
 
