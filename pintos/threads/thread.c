@@ -240,16 +240,6 @@ thread_block (void) {
 	schedule ();
 }
 
-static bool
-cmp_priority (const struct list_elem *new_thread_elem, const struct list_elem *list_thread_elem,
-            void *aux UNUSED) 
-{
-  const struct thread *new_thread = list_entry (new_thread_elem, struct thread, elem);
-  const struct thread *list_thread = list_entry (list_thread_elem, struct thread, elem);
-  
-  return new_thread->priority > list_thread->priority;
-}
-
 /* 블록된 스레드 T를 실행 준비 상태로 전환한다.
    T가 블록 상태가 아니면 오류다. (실행 중인 스레드를 준비 상태로 만들려면
    thread_yield()를 사용한다.)
