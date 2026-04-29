@@ -139,8 +139,7 @@ sema_up (struct semaphore *sema) {
 
 	intr_set_level (old_level);
 
-	if (first != NULL && !intr_context ()
-			&& first->priority > cur->priority) {
+	if (first != NULL && !intr_context () && first->priority > cur->priority) {
 		thread_yield ();
 	}
 }
@@ -338,8 +337,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	if (!list_empty (&cond->waiters))
-		sema_up (&list_entry (list_pop_front (&cond->waiters),
-					struct semaphore_elem, elem)->semaphore);
+		sema_up (&list_entry (list_pop_front (&cond->waiters), struct semaphore_elem, elem)->semaphore);
+	// 세마랑 cond 굴레에 빠졋삼. 
+
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

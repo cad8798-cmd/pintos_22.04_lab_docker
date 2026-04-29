@@ -213,7 +213,7 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 	// priority 설정 
-	t->priority = priority;
+	// t->priority = priority;
 	
 	/* 실행 큐에 추가한다. */
 	thread_unblock (t);
