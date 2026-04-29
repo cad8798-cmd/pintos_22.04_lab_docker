@@ -66,6 +66,10 @@ static tid_t allocate_tid (void);
 static bool cmp_priority (const struct list_elem *, const struct list_elem *,
             void *);
 
+typedef bool list_less_func (const struct list_elem *a,
+                             const struct list_elem *b,
+                             void *aux);
+
 /* T가 유효한 스레드를 가리키는 것처럼 보이면 true를 반환한다. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -248,6 +252,7 @@ thread_unblock (struct thread *t) {
 	//list_push_back (&ready_list, &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+	thread_yield(); //새로운 스레드가 더 높다면 schedule을 호출해야됨. 즉, 현재 스레드가 cpu를 양보. 비교하는 걸 넣어야 되나?
 }
 
 /* 실행 중인 스레드의 이름을 반환한다. */
@@ -317,6 +322,8 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	thread_yield(); //비교 한뒤 cpu 넘겨줘야되는디 -> 이거 때문에 되는거 같은데?
+	//list_insert_ordered(&ready_list, , cmp_priority, NULL);
 }
 
 /* 현재 스레드의 우선순위를 반환한다. */
