@@ -11,9 +11,18 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
-#ifdef USERPROG
+#ifdef USERPROG 
 #include "userprog/process.h"
 #endif
+
+static bool
+cmp_priority (const struct list_elem *t1, const struct list_elem *t2,
+						void *aux UNUSED)
+{
+	const struct thread *a = list_entry(t1, struct thread, elem);
+	const struct thread *b = list_entry(t2, struct thread, elem);
+	return a->priority > b->priority; // TODO: local ticks 비교하는 코드 짜기
+}
 
 /* struct thread의 `magic' 멤버에 넣는 임의의 값.
    스택 오버플로를 감지하는 데 사용한다. 자세한 내용은 thread.h
@@ -62,6 +71,13 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+
+static bool cmp_priority (const struct list_elem *, const struct list_elem *,
+            void *);
+
+typedef bool list_less_func (const struct list_elem *a,
+                             const struct list_elem *b,
+                             void *aux);
 
 /* T가 유효한 스레드를 가리키는 것처럼 보이면 true를 반환한다. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -196,9 +212,17 @@ thread_create (const char *name, int priority,
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
-
+	// priority 설정 
+	t->priority = priority;
+	
 	/* 실행 큐에 추가한다. */
 	thread_unblock (t);
+
+	// current running 스레드와 새롭게 삽입된 스레드의 priority 비교 
+	struct thread *cur = thread_current();
+	if (cur->priority < t->priority)
+		// 새로운 스레드 priority가 더 크면 CPU 양보
+		thread_yield();
 
 	return tid;
 }
@@ -216,6 +240,16 @@ thread_block (void) {
 	schedule ();
 }
 
+static bool
+cmp_priority (const struct list_elem *new_thread_elem, const struct list_elem *list_thread_elem,
+            void *aux UNUSED) 
+{
+  const struct thread *new_thread = list_entry (new_thread_elem, struct thread, elem);
+  const struct thread *list_thread = list_entry (list_thread_elem, struct thread, elem);
+  
+  return new_thread->priority > list_thread->priority;
+}
+
 /* 블록된 스레드 T를 실행 준비 상태로 전환한다.
    T가 블록 상태가 아니면 오류다. (실행 중인 스레드를 준비 상태로 만들려면
    thread_yield()를 사용한다.)
@@ -231,9 +265,15 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+
+	// 스레드가 unblock 됐을 때, ready_list에  priority 순서대로 삽입 
+	// list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
+
+
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+	thread_yield(); //새로운 스레드가 더 높다면 schedule을 호출해야됨. 즉, 현재 스레드가 cpu를 양보. 비교하는 걸 넣어야 되나?
 }
 
 /* 실행 중인 스레드의 이름을 반환한다. */
@@ -294,7 +334,9 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		// 스레드가 yield 됐을 때, ready_list에  priority 순서대로 삽입 
+		// list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -303,6 +345,17 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+
+	if (new_priority < list_entry (list_front (&ready_list), struct thread, elem)->priority) {
+		thread_yield();
+	}
+
+	
+	// 만약 새로운 priority 가 ready list 스레드 중 가장 큰 priority보다 작아졋다?
+	// 즉시 CPU 양보 
+	
+	// ready_list에서 현재 스레드의 priority 순서대로 재정렬 
+	list_sort(&ready_list, cmp_priority, NULL);
 }
 
 /* 현재 스레드의 우선순위를 반환한다. */
