@@ -72,6 +72,13 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+static bool cmp_priority (const struct list_elem *, const struct list_elem *,
+            void *);
+
+typedef bool list_less_func (const struct list_elem *a,
+                             const struct list_elem *b,
+                             void *aux);
+
 /* T가 유효한 스레드를 가리키는 것처럼 보이면 true를 반환한다. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -233,6 +240,16 @@ thread_block (void) {
 	schedule ();
 }
 
+static bool
+cmp_priority (const struct list_elem *new_thread_elem, const struct list_elem *list_thread_elem,
+            void *aux UNUSED) 
+{
+  const struct thread *new_thread = list_entry (new_thread_elem, struct thread, elem);
+  const struct thread *list_thread = list_entry (list_thread_elem, struct thread, elem);
+  
+  return new_thread->priority > list_thread->priority;
+}
+
 /* 블록된 스레드 T를 실행 준비 상태로 전환한다.
    T가 블록 상태가 아니면 오류다. (실행 중인 스레드를 준비 상태로 만들려면
    thread_yield()를 사용한다.)
@@ -256,6 +273,7 @@ thread_unblock (struct thread *t) {
 
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+	thread_yield(); //새로운 스레드가 더 높다면 schedule을 호출해야됨. 즉, 현재 스레드가 cpu를 양보. 비교하는 걸 넣어야 되나?
 }
 
 /* 실행 중인 스레드의 이름을 반환한다. */
@@ -328,7 +346,7 @@ void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
 
-	if (new_priority < list_entry (list_pop_front (&ready_list), struct thread, elem)->priority) {
+	if (new_priority < list_entry (list_front (&ready_list), struct thread, elem)->priority) {
 		thread_yield();
 	}
 
