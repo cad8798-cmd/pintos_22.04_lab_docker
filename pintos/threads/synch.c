@@ -32,6 +32,15 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+static bool
+cmp_priority (const struct list_elem *t1, const struct list_elem *t2,
+						void *aux UNUSED)
+{
+	const struct thread *a = list_entry(t1, struct thread, elem);
+	const struct thread *b = list_entry(t2, struct thread, elem);
+	return a->priority > b->priority; // TODO: local ticks 비교하는 코드 짜기
+}
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -66,7 +75,9 @@ sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
+		// waiters 리스트에 priority 순서대로 스레드 삽입 
+		// list_push_back (&sema->waiters, &thread_current ()->elem);
+		list_insert_ordered(&sema->waiters, &thread_current ()->elem, cmp_priority, NULL); 
 		thread_block ();
 	}
 	sema->value--;
@@ -105,15 +116,32 @@ sema_try_down (struct semaphore *sema) {
 void
 sema_up (struct semaphore *sema) {
 	enum intr_level old_level;
-
+	struct thread *cur = thread_current(); 
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
-					struct thread, elem));
+	struct thread *first = NULL;
+	if (!list_empty (&sema->waiters))  {
+		first = list_entry (list_pop_front (&sema->waiters),	struct thread, elem);
+		thread_unblock (first);
+	}
 	sema->value++;
+
+	// 궁금한바... 새로 뽑은 스레드가 현재보다 priority 높으면 바로 실행된댔는데, 바로 실행된다는게... sema value조차 올리지 않고, 인터럽트도 원래상태로 안돌려놓고 ㄹㅇ 바로. 바로 실행되는건지 or 이정도 작업은 다 한다음에 CPU를 양보해주는건지 
+	// 양보해주고 다시 돌아오나? 
+
+	// -> 정말 즉시 컨텍스트 스위치되는지 vs 정리 후 양보하는지 
+	// -> 그 자리에서 즉시 스위치되는 것은 아니고 sema_up()의 핵심 작업을 끝낸 뒤 안전한 시점에 CPU를 넘김 
+	
+
+	// priority 순서대로 waiters 리스트 정렬 
+	// list_sort(&sema->waiters, cmp_priority, NULL);
+
 	intr_set_level (old_level);
+
+	if (first->priority > cur->priority) {
+		thread_yield();
+	}
 }
 
 static void sema_test_helper (void *sema_);
@@ -282,10 +310,16 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	sema_init (&waiter.semaphore, 0);
-	list_push_back (&cond->waiters, &waiter.elem);
+
+	// list_push_back (&cond->waiters, &waiter.elem);
+	list_insert_ordered(&cond->waiters, &waiter.elem, cmp_priority, NULL);
+
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
 	lock_acquire (lock);
+
+	// condition 비교를 한다. 
+	// 안맞으면 다시 cond_wait으로 들어간다. -> condition 조건을 만족했으니 깨어난 것 아닌가? 
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
