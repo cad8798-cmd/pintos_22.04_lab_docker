@@ -22,8 +22,19 @@
 #include "vm/vm.h"
 #endif
 
+#define MAX_ARGS 128
+
+struct parsed_command {
+	int argc;
+	char *argv[MAX_ARGS];
+	char *program_name;
+};
+
 static void process_cleanup (void);
-static bool load (const char *file_name, struct intr_frame *if_);
+static bool load (char *file_name, struct intr_frame *if_);
+static bool parse_command_line (char *cmdline, struct parsed_command *cmd);
+static bool setup_arguments (struct intr_frame *if_,
+		const struct parsed_command *cmd);
 static void initd (void *f_name);
 static void __do_fork (void *);
 
@@ -321,13 +332,17 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_) {
+load (char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
+	struct parsed_command cmd;
 	off_t file_ofs;
 	bool success = false;
 	int i;
+
+	if (!parse_command_line (file_name, &cmd))
+		goto done;
 
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
@@ -336,9 +351,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current ());
 
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	file = filesys_open (cmd.program_name);
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", file_name);
+		printf ("load: %s: open failed\n", cmd.program_name);
 		goto done;
 	}
 
@@ -350,7 +365,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
-		printf ("load: %s: error loading executable\n", file_name);
+		printf ("load: %s: error loading executable\n", cmd.program_name);
 		goto done;
 	}
 
@@ -411,11 +426,11 @@ load (const char *file_name, struct intr_frame *if_) {
 	if (!setup_stack (if_))
 		goto done;
 
+	if (!setup_arguments (if_, &cmd))
+		goto done;
+
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 
 	success = true;
 
@@ -423,6 +438,34 @@ done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
 	return success;
+}
+
+/* Splits CMDLINE into executable name and argv tokens.
+ * TODO(ap/parser): Implement whitespace tokenization and populate CMD. */
+static bool
+parse_command_line (char *cmdline, struct parsed_command *cmd) {
+	ASSERT (cmdline != NULL);
+	ASSERT (cmd != NULL);
+
+	memset (cmd, 0, sizeof *cmd);
+	if (cmdline[0] == '\0')
+		return false;
+
+	cmd->argc = 1;
+	cmd->argv[0] = cmdline;
+	cmd->program_name = cmdline;
+	return true;
+}
+
+/* Copies parsed arguments onto the user stack.
+ * TODO(ap/stack): Push strings, argv pointers, null sentinel, align stack,
+ * and set if_->R.rdi / if_->R.rsi. */
+static bool
+setup_arguments (struct intr_frame *if_, const struct parsed_command *cmd) {
+	ASSERT (if_ != NULL);
+	ASSERT (cmd != NULL);
+
+	return true;
 }
 
 
